@@ -1,7 +1,9 @@
 using Arch.Core;
 using Arch.Core.Extensions;
 using CommunityToolkit.HighPerformance;
+using NUnit.Framework.Legacy;
 using static NUnit.Framework.Assert;
+using static NUnit.Framework.Legacy.ClassicAssert;
 using Throws = NUnit.Framework.Throws;
 
 namespace Arch.Persistence.Tests;

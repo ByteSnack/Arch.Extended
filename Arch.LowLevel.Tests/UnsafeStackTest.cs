@@ -1,7 +1,9 @@
 ﻿using System.Collections;
 
 namespace Arch.LowLevel.Tests;
+using NUnit.Framework.Legacy;
 using static NUnit.Framework.Assert;
+using static NUnit.Framework.Legacy.ClassicAssert;
 
 /// <summary>
 ///     Checks <see cref="UnsafeStack{T}"/> related methods.

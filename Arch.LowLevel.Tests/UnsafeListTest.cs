@@ -1,5 +1,7 @@
 ﻿using System.Collections;
+using NUnit.Framework.Legacy;
 using static NUnit.Framework.Assert;
+using static NUnit.Framework.Legacy.ClassicAssert;
 namespace Arch.LowLevel.Tests;
 
 /// <summary>

@@ -21,12 +21,12 @@ jobs:
             os: ubuntu-latest
             config: release
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-dotnet@v3
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: | 
-          6.0.x
-          7.0.x
+        dotnet-version: |
+          8.0.x
+          10.0.x
     #  workaround for actions/setup-dotnet#155
     - name: Clear package cache
       run: dotnet clean Arch.Extended.sln && dotnet nuget locals all --clear
