@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using Arch.Core;
+using NUnit.Framework.Legacy;
 using static NUnit.Framework.Assert;
+using static NUnit.Framework.Legacy.ClassicAssert;
 using Throws = NUnit.Framework.Throws;
 
 namespace Arch.Relationships.Tests;

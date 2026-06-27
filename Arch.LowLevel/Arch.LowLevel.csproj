@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net7.0; net6.0; netstandard2.1</TargetFrameworks>
+        <TargetFrameworks>net10.0; net8.0; netstandard2.1</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -28,7 +28,7 @@ Added tests. </PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
         <IsPackable>true</IsPackable>
 
-        <LangVersion>11</LangVersion>
+        <LangVersion>13</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Copyright>Apache2.0</Copyright>
         <PackageLicenseUrl></PackageLicenseUrl>
@@ -38,8 +38,8 @@ Added tests. </PackageReleaseNotes>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.2.2" />
-      <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+      <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.2" />
+      <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
     </ItemGroup>
 
 </Project>
