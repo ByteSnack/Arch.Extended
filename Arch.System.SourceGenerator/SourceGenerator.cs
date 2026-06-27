@@ -8,29 +8,17 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Arch.System.SourceGenerator;
 
+/// <summary>
+/// Generates queries.
+/// </summary>
 [Generator]
 public class QueryGenerator : IIncrementalGenerator
 {
-    private static Dictionary<ISymbol, List<IMethodSymbol>> _classToMethods { get; set; }
-
+    /// <inheritdoc cref="IIncrementalGenerator.Initialize"/>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         //if (!Debugger.IsAttached) Debugger.Launch();
 
-        // Register the generic attributes 
-        var attributes = $$"""
-            namespace Arch.System.SourceGenerator
-            {
-            #if NET7_0_OR_GREATER
-                {{new StringBuilder().AppendGenericAttributes("All", "All", 25)}}
-                {{new StringBuilder().AppendGenericAttributes("Any", "Any", 25)}}
-                {{new StringBuilder().AppendGenericAttributes("None", "None", 25)}}
-                {{new StringBuilder().AppendGenericAttributes("Exclusive", "Exclusive", 25)}}
-            #endif
-            }
-        """;
-        context.RegisterPostInitializationOutput(ctx => ctx.AddSource("Attributes.g.cs", SourceText.From(attributes, Encoding.UTF8)));
-        
         // Do a simple filter for methods marked with update
         IncrementalValuesProvider<MethodDeclarationSyntax> methodDeclarations = context.SyntaxProvider.CreateSyntaxProvider(
                  static (s, _) => s is MethodDeclarationSyntax { AttributeLists.Count: > 0 },
@@ -44,21 +32,21 @@ public class QueryGenerator : IIncrementalGenerator
 
     /// <summary>
     ///     Adds a <see cref="IMethodSymbol"/> to its class.
-    ///     Stores them in <see cref="_classToMethods"/>.
     /// </summary>
+    /// <param name="classToMethods">The dictionary mapping classes to their methods.</param>
     /// <param name="methodSymbol">The <see cref="IMethodSymbol"/> which will be added/mapped to its class.</param>
-    private static void AddMethodToClass(IMethodSymbol methodSymbol)
+    private static void AddMethodToClass(Dictionary<ISymbol, List<IMethodSymbol>> classToMethods, IMethodSymbol methodSymbol)
     {
-        if (!_classToMethods.TryGetValue(methodSymbol.ContainingSymbol, out var list))
+        if (!classToMethods.TryGetValue(methodSymbol.ContainingSymbol, out var list))
         {
             list = new List<IMethodSymbol>();
-            _classToMethods[methodSymbol.ContainingSymbol] = list;
+            classToMethods[methodSymbol.ContainingSymbol] = list;
         }
         list.Add(methodSymbol);
     }
     
     /// <summary>
-    ///     Returns a <see cref="MethodDeclarationSyntax"/> if its annocated with a attribute of <see cref="name"/>.
+    ///     Returns a <see cref="MethodDeclarationSyntax"/> if it's annotated with an attribute of <paramref name="name"/>.
     /// </summary>
     /// <param name="context">Its <see cref="GeneratorSyntaxContext"/>.</param>
     /// <param name="name">The attributes name.</param>
@@ -99,7 +87,7 @@ public class QueryGenerator : IIncrementalGenerator
         if (methods.IsDefaultOrEmpty) return;
         
         // Generate Query methods and map them to their classes
-        _classToMethods = new(512);
+        var classToMethods = new Dictionary<ISymbol, List<IMethodSymbol>>(512, SymbolEqualityComparer.Default);
         foreach (var methodSyntax in methods)
         {
             IMethodSymbol? methodSymbol = null;
@@ -114,21 +102,21 @@ public class QueryGenerator : IIncrementalGenerator
                 continue;
             }
 
-            AddMethodToClass(methodSymbol);
-            
+            AddMethodToClass(classToMethods, methodSymbol!);
+
             var sb = new StringBuilder();
-            var method = sb.AppendQueryMethod(methodSymbol);
-            var fileName = methodSymbol.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat).Replace('<', '{').Replace('>', '}');
+            var method = sb.AppendQueryMethod(methodSymbol!);
+            var fileName = methodSymbol!.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat).Replace('<', '{').Replace('>', '}');
             context.AddSource($"{fileName}.g.cs",CSharpSyntaxTree.ParseText(method.ToString()).GetRoot().NormalizeWhitespace().ToFullString());
         }
 
         // Creating class that calls the created methods after another.
-        foreach (var classToMethod in _classToMethods)
+        foreach (var classToMethod in classToMethods)
         {
             var template = new StringBuilder().AppendBaseSystem(classToMethod).ToString();
             if (string.IsNullOrEmpty(template)) continue;
             
-            var fileName = (classToMethod.Key as INamedTypeSymbol).ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat).Replace('<', '{').Replace('>', '}');
+            var fileName = ((INamedTypeSymbol)classToMethod.Key).ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat).Replace('<', '{').Replace('>', '}');
             context.AddSource($"{fileName}.g.cs",
                 CSharpSyntaxTree.ParseText(template).GetRoot().NormalizeWhitespace().ToFullString());
         }
@@ -139,7 +127,7 @@ public class QueryGenerator : IIncrementalGenerator
     /// </summary>
     class Comparer : IEqualityComparer<MethodDeclarationSyntax>
     {
-        public static readonly Comparer Instance = new Comparer();
+        public static readonly Comparer Instance = new();
 
         public bool Equals(MethodDeclarationSyntax x, MethodDeclarationSyntax y)
         {

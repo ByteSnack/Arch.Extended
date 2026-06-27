@@ -20,8 +20,9 @@ public partial class SingleEntityFormatter : IJsonFormatter<Entity>
     /// <summary>
     ///     The <see cref="EntityWorld"/> the entity belongs to. 
     /// </summary>
-    internal World EntityWorld { get; set; }
+    internal World EntityWorld { get; set; } = null!;
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, Entity value, IJsonFormatterResolver formatterResolver)
     {
         writer.WriteBeginObject();
@@ -43,13 +44,13 @@ public partial class SingleEntityFormatter : IJsonFormatter<Entity>
         // Write size
         var componentTypes = value.GetComponentTypes();
         writer.WritePropertyName("size");
-        writer.WriteInt32(componentTypes.Length);
+        writer.WriteInt32(componentTypes.Count);
         writer.WriteValueSeparator();
 
         // Write components
         writer.WritePropertyName("components");
         writer.WriteBeginArray();
-        foreach (ref var type in componentTypes.AsSpan())
+        foreach (ref var type in componentTypes.Components)
         {
             // Write type
             writer.WriteBeginObject();
@@ -70,6 +71,7 @@ public partial class SingleEntityFormatter : IJsonFormatter<Entity>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public Entity Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         reader.ReadIsBeginObject();
@@ -123,7 +125,7 @@ public partial class SingleEntityFormatter : IJsonFormatter<Entity>
     }
 }
 
-public partial class EntityFormatter : IJsonFormatter<Entity>, IObjectPropertyNameFormatter<Entity>
+public partial class EntityFormatter : IJsonFormatter<Entity>
 {
 
     /// <summary>
@@ -132,33 +134,22 @@ public partial class EntityFormatter : IJsonFormatter<Entity>, IObjectPropertyNa
     /// </summary>
     internal int WorldId { get; set; }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, Entity value, IJsonFormatterResolver formatterResolver)
     {
         writer.WriteInt32(value.Id);
+        writer.WriteValueSeparator();
+        writer.WriteInt32(value.Version);
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public Entity Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         // Read id
         var id = reader.ReadInt32();
-        return DangerousEntityExtensions.CreateEntityStruct(id, WorldId);
-    }
-
-    public void SerializeToPropertyName(ref JsonWriter writer, Entity value, IJsonFormatterResolver formatterResolver)
-    {
-        writer.WritePropertyName("key");
-        Serialize(ref writer, value, formatterResolver);
-        writer.WriteValueSeparator();
-        writer.WriteString("value");
-    }
-
-    public Entity DeserializeFromPropertyName(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
-    {
-        reader.ReadPropertyName();
-        var entity = Deserialize(ref reader, formatterResolver);
         reader.ReadIsValueSeparator();
-        reader.ReadString();
-        return entity;
+        var version = reader.ReadInt32();
+        return DangerousEntityExtensions.CreateEntityStruct(id, WorldId, version);
     }
 }
 
@@ -169,6 +160,7 @@ public partial class EntityFormatter : IJsonFormatter<Entity>, IObjectPropertyNa
 /// </summary>
 public partial class ArrayFormatter : IJsonFormatter<Array>
 {
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, Array value, IJsonFormatterResolver formatterResolver)
     {
         var type = value.GetType().GetElementType();
@@ -179,7 +171,7 @@ public partial class ArrayFormatter : IJsonFormatter<Array>
         JsonSerializer.Serialize(ref writer, type, formatterResolver);
         writer.WriteValueSeparator();
 
-        writer.WritePropertyName("size");
+        writer.WritePropertyName("length");
         writer.WriteUInt32((uint)value.Length);
         writer.WriteValueSeparator();
 
@@ -197,6 +189,7 @@ public partial class ArrayFormatter : IJsonFormatter<Array>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public Array Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         // Write type and size
@@ -231,9 +224,9 @@ public partial class ArrayFormatter : IJsonFormatter<Array>
 ///     The <see cref="JaggedArrayFormatter{T}"/> class
 ///     (de)serializes a <see cref="JaggedArray{T}"/>.
 /// </summary>
-/// <typeparam name="T">The type stored in the <see cref="JaggedArray{T}"/>.</typeparam>
 public partial class JaggedArrayFormatter<T> : IJsonFormatter<JaggedArray<T>>
 {
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, JaggedArray<T> value, IJsonFormatterResolver formatterResolver)
     {
         writer.WriteBeginObject();
@@ -263,6 +256,7 @@ public partial class JaggedArrayFormatter<T> : IJsonFormatter<JaggedArray<T>>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public JaggedArray<T> Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         reader.ReadIsBeginObject();
@@ -295,6 +289,7 @@ public partial class JaggedArrayFormatter<T> : IJsonFormatter<JaggedArray<T>>
 /// </summary>
 public partial class ComponentTypeFormatter : IJsonFormatter<ComponentType>
 {
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, ComponentType value, IJsonFormatterResolver formatterResolver)
     {
         writer.WriteBeginObject();
@@ -311,6 +306,7 @@ public partial class ComponentTypeFormatter : IJsonFormatter<ComponentType>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public ComponentType Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         reader.ReadIsBeginObject();
@@ -331,27 +327,97 @@ public partial class ComponentTypeFormatter : IJsonFormatter<ComponentType>
 
 /// <summary>
 ///     The <see cref="ComponentTypeFormatter"/> class
+///     is a <see cref="IJsonFormatter{ComponentType}"/> to (de)serialize <see cref="Signature"/>s to or from json.
+/// </summary>
+public partial class SignatureFormatter : IJsonFormatter<Signature>
+{
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
+    public void Serialize(ref JsonWriter writer, Signature value, IJsonFormatterResolver formatterResolver)
+    {
+        var componentTypeFormatter = formatterResolver.GetFormatter<ComponentType>() as ComponentTypeFormatter;
+
+        writer.WriteBeginObject();
+
+        // write Count
+        writer.WritePropertyName("count");
+        writer.WriteUInt32((uint)value.Count);
+        writer.WriteValueSeparator();
+        
+        // Write components
+        writer.WritePropertyName("components");
+        writer.WriteBeginArray();
+        
+        foreach (var type in value.Components)
+        {
+            componentTypeFormatter!.Serialize(ref writer, type, formatterResolver);
+            writer.WriteValueSeparator();
+        }
+        
+        // Cut last value seperator
+        if (value.Count > 0)
+        {
+            writer.AdvanceOffset(-1);
+        }
+        
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
+    public Signature Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
+    {
+        var componentTypeFormatter = formatterResolver.GetFormatter<ComponentType>() as ComponentTypeFormatter;
+        
+        reader.ReadIsBeginObject();
+        reader.ReadPropertyName();
+        
+        // Read count
+        var count = (int)reader.ReadUInt32();
+        reader.ReadIsValueSeparator();
+        
+        // Read types
+        reader.ReadPropertyName();
+        reader.ReadIsBeginArray();
+        
+        var componentTypes = new ComponentType[count];
+        count = 0;
+        while (!reader.ReadIsEndArrayWithSkipValueSeparator(ref count))
+        {
+            var archetype = componentTypeFormatter!.Deserialize(ref reader, formatterResolver);
+            componentTypes[count - 1] = (archetype);
+        }
+
+        // Set archetypes
+        reader.ReadIsEndObject();
+        return new Signature(componentTypes);
+    }
+}
+
+/// <summary>
+///     The <see cref="ComponentTypeFormatter"/> class
 ///     is a <see cref="IJsonFormatter{ComponentType}"/> to (de)serialize <see cref="ComponentType"/>s to or from json.
 /// </summary>
-public partial class EntitySlotFormatter : IJsonFormatter<(Archetype, (int,int))>
+public partial class EntitySlotFormatter : IJsonFormatter<EntityData>
 {
-    public void Serialize(ref JsonWriter writer, (Archetype, (int, int)) value, IJsonFormatterResolver options)
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
+    public void Serialize(ref JsonWriter writer, EntityData value, IJsonFormatterResolver options)
     {
         writer.WriteBeginObject();
         
         // Write chunk index
         writer.WritePropertyName("chunkIndex");
-        writer.WriteUInt32((uint)value.Item2.Item1);
+        writer.WriteUInt32((uint)value.Slot.ChunkIndex);
         writer.WriteValueSeparator();
 
         // Write entity index
-        writer.WritePropertyName("entityIndex");
-        writer.WriteUInt32((uint)value.Item2.Item2);
+        writer.WritePropertyName("index");
+        writer.WriteUInt32((uint)value.Slot.Index);
         
         writer.WriteEndObject();
     }
 
-    public (Archetype, (int, int)) Deserialize(ref JsonReader reader, IJsonFormatterResolver options)
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
+    public EntityData Deserialize(ref JsonReader reader, IJsonFormatterResolver options)
     {
         reader.ReadIsBeginObject();
 
@@ -365,7 +431,7 @@ public partial class EntitySlotFormatter : IJsonFormatter<(Archetype, (int,int))
         var entityIndex = reader.ReadUInt32();
 
         reader.ReadIsEndObject();
-        return (null, ((int)chunkIndex, (int)entityIndex));
+        return new EntityData(null!, new Slot((int)entityIndex, (int)chunkIndex), 0);
     }
 }
 
@@ -375,6 +441,7 @@ public partial class EntitySlotFormatter : IJsonFormatter<(Archetype, (int,int))
 /// </summary>
 public partial class WorldFormatter : IJsonFormatter<World>
 {
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, World value, IJsonFormatterResolver formatterResolver)
     {
         //var archetypeFormatter = formatterResolver.GetFormatter<Archetype>();
@@ -383,14 +450,18 @@ public partial class WorldFormatter : IJsonFormatter<World>
 
         writer.WriteBeginObject();
 
-        // Write entity info
-        writer.WritePropertyName("versions");
-        JsonSerializer.Serialize(ref writer, value.GetVersions(), formatterResolver);
+        // Write meta data
+        writer.WritePropertyName("baseChunkSize");
+        writer.WriteUInt32((uint)value.BaseChunkSize);
         writer.WriteValueSeparator();
-
+        
+        writer.WritePropertyName("baseChunkEntityCount");
+        writer.WriteUInt32((uint)value.BaseChunkEntityCount);
+        writer.WriteValueSeparator();
+        
         // Write slots
         writer.WritePropertyName("slots");
-        JsonSerializer.Serialize(ref writer, value.GetSlots(), formatterResolver);
+        JsonSerializer.Serialize(ref writer, value.GetEntityDataArray(), formatterResolver);
         writer.WriteValueSeparator();
 
         //Write recycled entity ids
@@ -436,25 +507,32 @@ public partial class WorldFormatter : IJsonFormatter<World>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public World Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         // Create world and setup formatter
-        var world = World.Create();
         var archetypeFormatter = formatterResolver.GetFormatter<Archetype>() as ArchetypeFormatter;
         var entityFormatter = formatterResolver.GetFormatter<Entity>() as EntityFormatter;
-        entityFormatter.WorldId = world.Id;
-        archetypeFormatter.World = world;
 
         reader.ReadIsBeginObject();
 
-        // Read versions
+        // Read meta data
         reader.ReadPropertyName();
-        var versions = JsonSerializer.Deserialize<JaggedArray<int>>(ref reader, formatterResolver);
+        var baseChunkSize = reader.ReadUInt32();
         reader.ReadIsValueSeparator();
-
+        
+        reader.ReadPropertyName();
+        var baseChunkEntityCount = reader.ReadUInt32();
+        reader.ReadIsValueSeparator();
+        
+        // Construct world
+        var world = World.Create(chunkSizeInBytes: (int)baseChunkSize, minimumAmountOfEntitiesPerChunk: (int)baseChunkEntityCount);
+        entityFormatter!.WorldId = world.Id;
+        archetypeFormatter!.World = world;
+        
         // Read slots
         reader.ReadPropertyName();
-        var slots = JsonSerializer.Deserialize<JaggedArray<(Archetype,(int, int))>>(ref reader, formatterResolver);
+        var slots = JsonSerializer.Deserialize<JaggedArray<EntityData>>(ref reader, formatterResolver);
         reader.ReadIsValueSeparator();
 
         // Read recycled ids
@@ -482,10 +560,9 @@ public partial class WorldFormatter : IJsonFormatter<World>
         reader.ReadIsValueSeparator();
         
         // Forward values to the world
-        world.SetVersions(versions);
         world.SetRecycledEntityIds(recycledIds);
-        world.SetSlots(slots);
-        world.EnsureCapacity(versions.Capacity);
+        world.SetEntityDataArray(slots);
+        world.EnsureCapacity(slots.Capacity);
 
         // Read archetypes
         count = 0;
@@ -515,15 +592,16 @@ public partial class ArchetypeFormatter : IJsonFormatter<Archetype>
     /// <summary>
     ///     The <see cref="World"/> which is being used by this formatter during serialisation/deserialisation. 
     /// </summary>
-    internal World World { get; set; }
+    internal World World { get; set; } = null!;
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, Archetype value, IJsonFormatterResolver formatterResolver)
     {
         // Setup formatters
-        var types = value.Types;
+        var types = value.Signature;
         var chunks = value.Chunks;
         var chunkFormatter = formatterResolver.GetFormatter<Chunk>() as ChunkFormatter;
-        chunkFormatter.Types = types;
+        chunkFormatter!.Signature = types;
 
         writer.WriteBeginObject();
 
@@ -538,7 +616,7 @@ public partial class ArchetypeFormatter : IJsonFormatter<Archetype>
         writer.WriteValueSeparator();
 
         // Write chunk size
-        writer.WritePropertyName("chunkSize");
+        writer.WritePropertyName("chunkCount");
         writer.WriteUInt32((uint)value.ChunkCount);
         writer.WriteValueSeparator();
 
@@ -562,6 +640,7 @@ public partial class ArchetypeFormatter : IJsonFormatter<Archetype>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public Archetype Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         var chunkFormatter = formatterResolver.GetFormatter<Chunk>() as ChunkFormatter;
@@ -570,7 +649,7 @@ public partial class ArchetypeFormatter : IJsonFormatter<Archetype>
 
         // Types
         reader.ReadPropertyName();
-        var types = JsonSerializer.Deserialize<ComponentType[]>(ref reader, formatterResolver);
+        var types = JsonSerializer.Deserialize<Signature>(ref reader, formatterResolver);
         reader.ReadIsValueSeparator();
 
         // Archetype lookup array
@@ -580,18 +659,19 @@ public partial class ArchetypeFormatter : IJsonFormatter<Archetype>
 
         // Archetype chunk size and list
         reader.ReadPropertyName();
-        var chunkSize = reader.ReadUInt32();
+        var chunkCount = reader.ReadUInt32();
         reader.ReadIsValueSeparator();
 
         // Create archetype
-        var chunks = new List<Chunk>((int)chunkSize);
-        var archetype = DangerousArchetypeExtensions.CreateArchetype(types.ToArray());
-        archetype.SetSize((int)chunkSize);
+        var chunks = new List<Chunk>((int)chunkCount);
+        var archetype = DangerousArchetypeExtensions.CreateArchetype(World.BaseChunkSize, World.BaseChunkEntityCount, types);
+        archetype.Chunks.Clear(true);
+        archetype.SetCount((int)chunkCount - 1);
 
         // Pass types and lookup array to the chunk formatter for saving performance and memory
-        chunkFormatter.World = World;
+        chunkFormatter!.World = World;
         chunkFormatter.Archetype = archetype;
-        chunkFormatter.Types = types;
+        chunkFormatter.Signature = types;
         chunkFormatter.LookupArray = lookupArray;
 
         // Deserialise each chunk and put it into the archetype. 
@@ -599,14 +679,14 @@ public partial class ArchetypeFormatter : IJsonFormatter<Archetype>
         reader.ReadIsBeginArray();
 
         var entities = 0;
-        for (var index = 0; index < chunkSize; index++)
+        for (var index = 0; index < chunkCount; index++)
         {
             var chunk = chunkFormatter.Deserialize(ref reader, formatterResolver);
             chunks.Add(chunk);
-            entities += chunk.Size;
+            entities += chunk.Count;
             reader.ReadIsValueSeparator();
         }
-
+        
         archetype.SetChunks(chunks);
         archetype.SetEntities(entities);
 
@@ -627,19 +707,19 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
     ///     The <see cref="Archetype"/> the current (de)serialized <see cref="Chunk"/> belongs to.
     ///     Since chunks do not know this, we need to pass this information along it. 
     /// </summary>
-    internal World World { get; set; }
+    internal World World { get; set; } = null!;
 
     /// <summary>
     ///     The <see cref="Archetype"/> the current (de)serialized <see cref="Chunk"/> belongs to.
     ///     Since chunks do not know this, we need to pass this information along it. 
     /// </summary>
-    internal Archetype Archetype { get; set; }
+    internal Archetype Archetype { get; set; } = null!;
 
     /// <summary>
     ///     The types used in the <see cref="Chunk"/> in each <see cref="Chunk"/> (de)serialized by this formatter.
     ///     <remarks>Since <see cref="Chunk"/> does not have a reference to them and its controlled by its <see cref="Archetype"/>.</remarks>
     /// </summary>
-    internal ComponentType[] Types { get; set; } = Array.Empty<ComponentType>();
+    internal Signature Signature { get; set; } = Signature.Null;
 
     /// <summary>
     ///     The lookup array used by each <see cref="Chunk"/> (de)serialized by this formatter.
@@ -647,13 +727,14 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
     /// </summary>
     internal int[] LookupArray { get; set; } = Array.Empty<int>();
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Serialize"/>
     public void Serialize(ref JsonWriter writer, Chunk value, IJsonFormatterResolver formatterResolver)
     {
         writer.WriteBeginObject();
 
         // Write size
-        writer.WritePropertyName("size");
-        writer.WriteUInt32((uint)value.Size);
+        writer.WritePropertyName("count");
+        writer.WriteUInt32((uint)value.Count);
         writer.WriteValueSeparator();
 
         // Write capacity
@@ -662,17 +743,15 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
         writer.WriteValueSeparator();
 
         // Write entitys
-        writer.WritePropertyName("entitys");
+        writer.WritePropertyName("entities");
         JsonSerializer.NonGeneric.Serialize(ref writer, value.Entities, formatterResolver);
         writer.WriteValueSeparator();
 
         // Persist arrays as an array...
         writer.WritePropertyName("arrays");
         writer.WriteBeginArray();
-        for (var index = 0; index < Types.Length; index++)
+        foreach(var type in Signature.Components)
         {
-            ref var type = ref Types[index];
-
             // Write array itself
             var array = value.GetArray(type);
             JsonSerializer.Serialize(ref writer, array, formatterResolver);
@@ -680,7 +759,7 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
         }
 
         // Remove trailing 
-        if (Types.Length > 0)
+        if (Signature.Count > 0)
         {
             writer.AdvanceOffset(-1);
         }
@@ -689,6 +768,7 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
         writer.WriteEndObject();
     }
 
+    /// <inheritdoc cref="IJsonFormatter{T}.Deserialize"/>
     public Chunk Deserialize(ref JsonReader reader, IJsonFormatterResolver formatterResolver)
     {
         reader.ReadIsBeginObject();
@@ -709,7 +789,7 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
         reader.ReadIsValueSeparator();
 
         // Create chunk
-        var chunk = DangerousChunkExtensions.CreateChunk((int)capacity, LookupArray, Types);
+        var chunk = DangerousChunkExtensions.CreateChunk((int)capacity, LookupArray, Signature);
         entities.CopyTo(chunk.Entities, 0);
         chunk.SetSize((int)size);
 
@@ -717,18 +797,18 @@ public partial class ChunkFormatter : IJsonFormatter<Chunk>
         for (var index = 0; index < size; index++)
         {
             ref var entity = ref chunk.Entity(index);
-            entity = DangerousEntityExtensions.CreateEntityStruct(entity.Id, World.Id);
+            entity = DangerousEntityExtensions.CreateEntityStruct(entity.Id, World.Id, entity.Version);
             World.SetArchetype(entity, Archetype);
         }
 
         // Persist arrays as an array...
         reader.ReadPropertyName();
         reader.ReadIsBeginArray();
-        for (var index = 0; index < Types.Length; index++)
+        foreach(var type in Signature)
         {
             // Read array of the type
             var array = JsonSerializer.Deserialize<Array>(ref reader, formatterResolver);
-            var chunkArray = chunk.GetArray(array.GetType().GetElementType());
+            var chunkArray = chunk.GetArray(array.GetType().GetElementType()!);
             Array.Copy(array, chunkArray, (int)size);
             reader.ReadIsValueSeparator();
         }

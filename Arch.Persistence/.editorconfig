@@ -1,0 +1,12 @@
+# MessagePack 3.x ships a source generator/analyzer that assumes one generated
+# IMessagePackFormatter<T> per type. Arch.Persistence instead registers formatters by hand
+# via custom resolvers — SingleEntityFormatter and EntityFormatter both target Entity for
+# different serialization contexts — and serializes components through the runtime resolver
+# rather than the compile-time generator. Silence the generator's (error-severity) diagnostics:
+#   MsgPack009 - multiple formatters found for a type
+#   MsgPack013 - formatter should expose a parameterless ctor / Instance field
+#   MsgPack014 - implement IMessagePackFormatter<T?> with nullable annotation
+[*.cs]
+dotnet_diagnostic.MsgPack009.severity = none
+dotnet_diagnostic.MsgPack013.severity = none
+dotnet_diagnostic.MsgPack014.severity = none

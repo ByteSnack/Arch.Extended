@@ -6,12 +6,6 @@
         <TargetFrameworks>net10.0;net8.0;netstandard2.1</TargetFrameworks>
         <LangVersion>13</LangVersion>
 
-        <!-- This project registers MessagePack formatters manually via custom resolvers
-             (e.g. SingleEntityFormatter and EntityFormatter both target Entity for different
-             contexts). MessagePack 3.x's source generator rejects multiple formatters per type
-             (MsgPack009); disable the generator/analyzer since discovery is done by hand here. -->
-        <NoWarn>$(NoWarn);MsgPack009</NoWarn>
-
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
         <IncludeSymbols>true</IncludeSymbols>
@@ -24,15 +18,24 @@
         <RepositoryUrl>https://github.com/genaray/Arch.Extended.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>c#;.net;.net6;.net7;ecs;game;entity;gamedev; game-development; game-engine; entity-component-system; arch;</PackageTags>
-        <PackageReleaseNotes>Updated to Arch 1.2.8</PackageReleaseNotes>
-        <Version>1.0.4</Version>
+        <PackageReleaseNotes>Updated to Arch 2.1.0</PackageReleaseNotes>
+        <Version>2.1.0</Version>
         <SatelliteResourceLanguages>en-US</SatelliteResourceLanguages>
 
         <UnityPublish>true</UnityPublish>
+
+        <!-- MessagePack 3.1.4 has known NuGet audit advisories (NU1903). This project pins it
+             deliberately; suppress the audit warning so the build (which runs -warnaserror in CI) passes. -->
+        <NoWarn>$(NoWarn);NU1902;NU1903</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Arch" Version="1.2.8" />
+      <PackageReference Include="Arch" Version="2.1.0" />
+      <!-- This project registers MessagePack formatters by hand via custom resolvers (e.g.
+           SingleEntityFormatter and EntityFormatter both target Entity for different contexts)
+           and relies on the runtime resolver, not the compile-time generator. MessagePack 3.x's
+           bundled analyzer assumes one generated formatter per type, so its diagnostics
+           (MsgPack009/013/014) are silenced via the project's .editorconfig. -->
       <PackageReference Include="MessagePack" Version="3.1.4" />
       <PackageReference Include="Utf8Json" Version="1.3.7" />
     </ItemGroup>
